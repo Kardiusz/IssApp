@@ -61,6 +61,10 @@ public class Main {
 
                 case 2:
                     System.out.println("Zamykamy appkę");
+
+                default:
+                    System.out.println("Nie ma takiej komendy");
+                    break;
             }
 
 
