@@ -1,6 +1,8 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -56,6 +58,15 @@ public class Main {
                     final double lon = jsonNode.at("/iss_position/longitude").asDouble();
 
                     System.out.println("Dnia " + localDateTime + " ISS " + " jest w miejscu szerokość " + lat + " długośc " + lon);
+
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter("iss_location.csv", true))){
+                        StringBuilder line = new StringBuilder();
+                        line.append("date").append(",").append(localDateTime).append(",")
+                                .append("lat").append(",").append("lat").append(",").append("lon").append(",").append("lon").append("\n");
+                        writer.write(line.toString());
+                    }
+
+
                     break;
 
 
