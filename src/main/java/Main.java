@@ -1,15 +1,22 @@
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Scanner;
 
 public class Main {
 
     private static final String ISS_API_LOCATION = "http://api.open-notify.org/iss-now.json";
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+    public static <jsonNode> void main(String[] args) throws IOException, InterruptedException {
 
         Scanner scanner = new Scanner(System.in);
 
@@ -34,7 +41,21 @@ public class Main {
                             build();
                     final HttpResponse<String> send = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-                    System.out.println(send.body());
+                    // Tworzymy sobie mappera, żeby wciągnąć wartośc z JSONa, czyli odpowiedzi z zewnętrznego serwisu
+                    ObjectMapper objectMapper = new ObjectMapper();
+                    final JsonNode jsonNode = objectMapper.readTree(send.body());
+
+                    // Wyciągamy timestamp jako long
+                    long timestamp = jsonNode.at("/timestamp").asLong();
+
+                    Instant instant = Instant.ofEpochSecond(timestamp);
+                    LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+
+                    // Wyciągamy szerokość i długość
+                    final double lat = jsonNode.at("/iss_position/latitude").asDouble();
+                    final double lon = jsonNode.at("/iss_position/longitude").asDouble();
+
+                    System.out.println("Dnia " + localDateTime + " ISS " + " jest w miejscu szerokość " + lat + " długośc " + lon);
                     break;
 
 
