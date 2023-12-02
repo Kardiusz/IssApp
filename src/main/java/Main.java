@@ -1,25 +1,29 @@
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import javax.swing.*;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+
+import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
+
 
 public class Main {
 
     private static final String ISS_API_LOCATION = "http://api.open-notify.org/iss-now.json";
     private static final String ISS_API_PEOPLE = "http://api.open-notify.org/astros.json";
 
-    public static <jsonNode> void main(String[] args) throws IOException, InterruptedException {
+    public static <jsonNode> void main(String[] args) throws IOException, InterruptedException, JsonProcessingException {
 
         Scanner scanner = new Scanner(System.in);
 
@@ -28,83 +32,115 @@ public class Main {
         do {
             System.out.println("1. Pobierz położenie ISS");
             System.out.println("2. Pobierz ludzi na ISS");
-            System.out.println("3. Zakończ aplikację");
+            System.out.println("3. Pobierz prędkość ISS");
+            System.out.println("4. Policz średnią prędkość ISS");
+            System.out.println("5. Zakończ aplikację");
 
             choice = scanner.nextInt();
             scanner.nextLine();
 
             switch (choice) {
                 case 1:
-                    // sprawdż położenie ISS
+                    //Sprawdź położenie ISS
 
+                    //Stworzenie HTTP klienta, request i wysłanie requestu z rządaniem odpowiedzi
+                    final HttpResponse<String> stringHttpResponseLocation = getStringHttpResponse(ISS_API_LOCATION);
 
-                    // Stworzenie HTTP klienta, request i wysyłanie requestu z rządaniem odpowiedzi
-                    HttpClient client = HttpClient.newHttpClient();
-                    HttpRequest request = (HttpRequest) HttpRequest.newBuilder().
-                            uri(URI.create(ISS_API_LOCATION)).
-                            build();
-                    final HttpResponse<String> send = client.send(request, HttpResponse.BodyHandlers.ofString());
+                    //Tworzymy sobie mppera, żeby wciągnąć wartość z JSONa, czyli odpowiedzi z zewnętrznego serwisu
+                    final JsonNode jsonNode = getJsonNode(stringHttpResponseLocation);
 
-                    // Tworzymy sobie mappera, żeby wciągnąć wartośc z JSONa, czyli odpowiedzi z zewnętrznego serwisu
-                    ObjectMapper objectMapper = new ObjectMapper();
-                    final JsonNode jsonNode = objectMapper.readTree(send.body());
-
-                    // Wyciągamy timestamp jako long
+                    //Wyciągamy timestamp jako long
                     long timestamp = jsonNode.at("/timestamp").asLong();
 
+                    //Tworzymy obiekt instant, który będzie nam potrzebny do stworzenia dalej obiektu LocalDataTiem
                     Instant instant = Instant.ofEpochSecond(timestamp);
                     LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
 
-                    // Wyciągamy szerokość i długość
+                    //Wyciągamy szerokość i długość ISS
                     final double lat = jsonNode.at("/iss_position/latitude").asDouble();
                     final double lon = jsonNode.at("/iss_position/longitude").asDouble();
 
-                    System.out.println("Dnia " + localDateTime + " ISS " + " jest w miejscu szerokość " + lat + " długośc " + lon);
 
-                    try (BufferedWriter writer = new BufferedWriter(new FileWriter("iss_location.csv", true))){
-                        StringBuilder line = new StringBuilder();
-                        line.append("date").append(",").append(localDateTime).append(",")
-                                .append("lat").append(",").append("lat").append(",").append("lon").append(",").append("lon").append("\n");
-                        writer.write(line.toString());
-                    }
+                    jsonNode.at("/iss_position/latitude").asDouble();
+                    jsonNode.at("/iss_position/longitude").asDouble();
 
+                    System.out.println("Dnia " + localDateTime + " ISS " + " jest w miejscu szerokość: " + lat + " długość " + lon + "\n");
 
                     break;
+
 
                 case 2:
-                    HttpClient client1 = HttpClient.newHttpClient();
-                    HttpRequest request1 = HttpRequest.newBuilder()
-                            .uri(URI.create(ISS_API_PEOPLE))
-                            .build();
+                    final HttpResponse<String> stringHttpResponsePeople = getStringHttpResponse(ISS_API_PEOPLE);
 
-                    final HttpResponse<String> response1 = client1.send(request1, HttpResponse.BodyHandlers.ofString());
-
-                    ObjectMapper objectMapper1 = new ObjectMapper();
-                    final JsonNode jsonNode1 =  objectMapper1.readTree(response1.body());
+                    final JsonNode jsonNode1 = getJsonNode(stringHttpResponsePeople);
                     final int totalNumber = jsonNode1.at("/number").asInt();
 
+                    //TODO Jak obejść to, żeby zapisaywało do pliku wszystkich ludzi raz i później już nie ndapisywało
                     StringBuilder people = new StringBuilder();
-                    for (JsonNode jsonArrayNode: jsonNode1.withArray("/people")) {
+                    for (JsonNode jsonArrayNode : jsonNode1.at("/people")) {
                         String name = jsonArrayNode.at("/name").asText();
                         System.out.println(name);
+                        writeToCsv("iss_people.csv", true, name);
                         people.append(name).append(",");
-
                     }
-
                     people.append(totalNumber).append("\n");
+                    writeToCsv("iss_people.csv", true, String.valueOf(totalNumber));
 
-                    try (BufferedWriter writer = new BufferedWriter(new FileWriter("iss_people.csv"))){
-                        writer.write(people.toString());
-                    }
-
-
-
-                    System.out.println("Wszystkich osób jest " + totalNumber);
+                    System.out.println("\n" + "Wszystkich osób jest " + totalNumber + "\n");
 
                     break;
 
-
                 case 3:
+                    final HttpResponse<String> stringHttpResponseFirst = getStringHttpResponse(ISS_API_LOCATION);
+                    final JsonNode jsonNodeFirst = getJsonNode(stringHttpResponseFirst);
+                    final double latFirst = jsonNodeFirst.at("/iss_position/latitude").asDouble();
+                    final double lonFirst = jsonNodeFirst.at("/iss_position/longitude").asDouble();
+
+                    //TODO weź czas z timestampa
+                    final int timeDifferenceInSeconds = 2;
+                    Thread.sleep(Duration.ofSeconds(timeDifferenceInSeconds));
+
+                    final HttpResponse<String> stringHttpResponseSecond = getStringHttpResponse(ISS_API_LOCATION);
+                    final JsonNode jsonNodeSecond = getJsonNode(stringHttpResponseSecond);
+                    final double latSecond = jsonNodeSecond.at("/iss_position/latitude").asDouble();
+                    final double lonSecond = jsonNodeSecond.at("/iss_position/longitude").asDouble();
+
+                    final double distance = calculateDistance(latFirst, lonFirst, latSecond, lonSecond);
+
+                    //dorga/przez czas
+                    double speed = distance / timeDifferenceInSeconds;
+                    System.out.println("Prędkość ISS wynosi " + speed + "km/s\n");
+                    writeToCsv("iss_speed.csv", true, "Speed", String.valueOf(speed));
+                    break;
+
+                case 4:
+
+
+                    List<String> speedValues = readSpeedFromCsvFile("iss_speed.csv");
+
+                    final Optional<Double> sum = speedValues.stream()
+                            .map(Double::valueOf)
+                            .reduce(Double::sum);
+
+
+                    Double average = 0.0;
+                   if (sum.isPresent()){
+                     average = sum.get()/speedValues.size();
+                    }
+
+
+                    System.out.println("Średnia prędkość z pliku to " + average + "\n");
+
+
+                    // To jest to samo co powyżej, ale mniej kodu
+//                    speedValues.stream()
+//                            .mapToDouble(Double::parseDouble)
+//                            .average()
+//                            .ifPresentOrElse(System.out::println, () -> System.out.println("Nie ma średniej"));
+
+                    break;
+
+                case 5:
                     System.out.println("Zamykamy appkę");
                     break;
 
@@ -114,7 +150,67 @@ public class Main {
             }
 
 
-        } while (choice != 3);
+        } while (choice != 5);
         scanner.close();
     }
+
+    private static JsonNode getJsonNode(final HttpResponse<String> stringHttpResponseLocation) throws JsonProcessingException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readTree(stringHttpResponseLocation.body());
+    }
+
+    private static HttpResponse<String> getStringHttpResponse(final String uri) throws IOException, InterruptedException {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(uri))
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+
+    }
+
+    public static List<String> readSpeedFromCsvFile(String file) throws IOException {
+        List<String> speedValues = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader("iss_speed.csv"))){
+            String line;
+            while ((line = reader.readLine()) != null){
+                final String[] split = line.split(",");
+                speedValues.add(split[1]);
+
+            }
+
+        }
+        return speedValues;
+    }
+
+    private static void writeToCsv(String file, boolean shouldAppend, String... arguments) throws IOException {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, shouldAppend))) {
+            StringBuilder line = new StringBuilder();
+            for (String argument : arguments) {
+                line.append(argument).append(",");
+            }
+            line.append("\n");
+            line.deleteCharAt(line.length() - 2);
+            writer.write(line.toString());
+        }
+
+    }
+
+    public static double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        // Promień ziemi w kilometrach
+        final double r = 6371;
+
+        // Różnice szerokości i długości geograficznych
+        double deltaLat = Math.toRadians(lat2 - lat1);
+        double deltaLon = Math.toRadians(lon2 - lon1);
+
+        // Obliczenia według wzoru haversine
+        double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        // Odległość w kilometrach
+        return r * c;
+    }
+
 }
